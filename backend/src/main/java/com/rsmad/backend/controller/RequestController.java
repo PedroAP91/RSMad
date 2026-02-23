@@ -3,6 +3,7 @@ package com.rsmad.backend.controller;
 import java.net.URI;
 import java.util.List;
 
+import com.rsmad.backend.dto.PagedResponse;
 import com.rsmad.backend.dto.RequestDTO;
 import com.rsmad.backend.dto.RequestRequest;
 import com.rsmad.backend.dto.UpdateRequestStatusRequest;
@@ -13,8 +14,11 @@ import com.rsmad.backend.model.RequestType;
 import com.rsmad.backend.service.RequestService;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -28,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/requests")
+@Validated
 public class RequestController {
 
     private final RequestService requestService;
@@ -46,13 +51,17 @@ public class RequestController {
     }
 
     @GetMapping
-    public List<RequestDTO> getRequests(
+    public PagedResponse<RequestDTO> getRequests(
             @RequestParam(required = false) RequestStatus status,
-            @RequestParam(required = false) RequestType type
+            @RequestParam(required = false) RequestType type,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size
     ) {
-        return requestService.findAll(status, type).stream()
+        PagedResponse<Request> paged = requestService.findAllPaged(status, type, page, size);
+        List<RequestDTO> items = paged.getItems().stream()
                 .map(requestMapper::toDto)
                 .toList();
+        return new PagedResponse<>(items, paged.getPage(), paged.getSize(), paged.getTotal());
     }
 
     @GetMapping("/{id}")

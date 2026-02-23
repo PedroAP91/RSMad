@@ -2,6 +2,7 @@ package com.rsmad.backend.service;
 
 import java.util.List;
 
+import com.rsmad.backend.dto.PagedResponse;
 import com.rsmad.backend.exception.RequestNotFoundException;
 import com.rsmad.backend.model.Request;
 import com.rsmad.backend.model.RequestStatus;
@@ -32,6 +33,22 @@ public class RequestService {
                 .filter(request -> status == null || request.estado() == status)
                 .filter(request -> type == null || request.tipo() == type)
                 .toList();
+    }
+
+    public PagedResponse<Request> findAllPaged(RequestStatus status, RequestType type, int page, int size) {
+        List<Request> filtered = requestRepository.findAllOrderedById().stream()
+                .filter(request -> status == null || request.estado() == status)
+                .filter(request -> type == null || request.tipo() == type)
+                .toList();
+
+        int total = filtered.size();
+        int from = page * size;
+        if (from >= total) {
+            return new PagedResponse<>(List.of(), page, size, total);
+        }
+
+        int to = Math.min(from + size, total);
+        return new PagedResponse<>(filtered.subList(from, to), page, size, total);
     }
 
     public Request findById(Long id) {

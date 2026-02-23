@@ -110,7 +110,7 @@ class RequestControllerTest {
     }
 
     @Test
-    void getRequestsReturnsListOrderedByIdAscAndSize3() throws Exception {
+    void getRequestsReturnsWrapperOrderedByIdAscAndSize3() throws Exception {
         createRequest("Req Uno", "d1", "COMIDA");
         createRequest("Req Dos", "d2", "SALUD");
         createRequest("Req Tres", "d3", "OTROS");
@@ -120,7 +120,11 @@ class RequestControllerTest {
                 .andReturn();
 
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
-        List<Long> ids = StreamSupport.stream(body.spliterator(), false)
+        assertThat(body.get("page").asInt()).isEqualTo(0);
+        assertThat(body.get("size").asInt()).isEqualTo(20);
+        assertThat(body.get("total").asInt()).isEqualTo(3);
+
+        List<Long> ids = StreamSupport.stream(body.get("items").spliterator(), false)
                 .map(node -> node.get("id").asLong())
                 .toList();
 
@@ -148,10 +152,11 @@ class RequestControllerTest {
                 .andReturn();
 
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
-        assertThat(body).hasSize(2);
-        assertThat(StreamSupport.stream(body.spliterator(), false)
+        assertThat(body.get("total").asInt()).isEqualTo(2);
+        assertThat(body.get("items")).hasSize(2);
+        assertThat(StreamSupport.stream(body.get("items").spliterator(), false)
                 .allMatch(node -> "ABIERTA".equals(node.get("estado").asText()))).isTrue();
-        assertThat(StreamSupport.stream(body.spliterator(), false)
+        assertThat(StreamSupport.stream(body.get("items").spliterator(), false)
                 .map(node -> node.get("id").asLong()).toList()).contains(abierta);
     }
 
@@ -166,8 +171,9 @@ class RequestControllerTest {
                 .andReturn();
 
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
-        assertThat(body).hasSize(2);
-        assertThat(StreamSupport.stream(body.spliterator(), false)
+        assertThat(body.get("total").asInt()).isEqualTo(2);
+        assertThat(body.get("items")).hasSize(2);
+        assertThat(StreamSupport.stream(body.get("items").spliterator(), false)
                 .allMatch(node -> "COMIDA".equals(node.get("tipo").asText()))).isTrue();
     }
 
@@ -191,10 +197,103 @@ class RequestControllerTest {
                 .andReturn();
 
         JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
-        assertThat(body).hasSize(1);
-        assertThat(body.get(0).get("id").asLong()).isEqualTo(abiertaComida);
-        assertThat(body.get(0).get("estado").asText()).isEqualTo("ABIERTA");
-        assertThat(body.get(0).get("tipo").asText()).isEqualTo("COMIDA");
+        assertThat(body.get("total").asInt()).isEqualTo(1);
+        assertThat(body.get("items")).hasSize(1);
+        assertThat(body.get("items").get(0).get("id").asLong()).isEqualTo(abiertaComida);
+        assertThat(body.get("items").get(0).get("estado").asText()).isEqualTo("ABIERTA");
+        assertThat(body.get("items").get(0).get("tipo").asText()).isEqualTo("COMIDA");
+    }
+
+    @Test
+    void getRequestsPaginationPage0Size2ReturnsFirstTwo() throws Exception {
+        createRequest("Uno", "d1", "COMIDA");
+        createRequest("Dos", "d2", "SALUD");
+        createRequest("Tres", "d3", "OTROS");
+        createRequest("Cuatro", "d4", "DUCHAS");
+        createRequest("Cinco", "d5", "ALOJAMIENTO");
+
+        MvcResult result = mockMvc.perform(get("/api/requests?page=0&size=2"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("total").asInt()).isEqualTo(5);
+        assertThat(body.get("items")).hasSize(2);
+        assertThat(body.get("items").get(0).get("id").asLong()).isEqualTo(1);
+        assertThat(body.get("items").get(1).get("id").asLong()).isEqualTo(2);
+    }
+
+    @Test
+    void getRequestsPaginationPage1Size2ReturnsThirdAndFourth() throws Exception {
+        createRequest("Uno", "d1", "COMIDA");
+        createRequest("Dos", "d2", "SALUD");
+        createRequest("Tres", "d3", "OTROS");
+        createRequest("Cuatro", "d4", "DUCHAS");
+        createRequest("Cinco", "d5", "ALOJAMIENTO");
+
+        MvcResult result = mockMvc.perform(get("/api/requests?page=1&size=2"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("total").asInt()).isEqualTo(5);
+        assertThat(body.get("items")).hasSize(2);
+        assertThat(body.get("items").get(0).get("id").asLong()).isEqualTo(3);
+        assertThat(body.get("items").get(1).get("id").asLong()).isEqualTo(4);
+    }
+
+    @Test
+    void getRequestsPaginationOutOfRangeReturnsEmptyItems() throws Exception {
+        createRequest("Uno", "d1", "COMIDA");
+        createRequest("Dos", "d2", "SALUD");
+        createRequest("Tres", "d3", "OTROS");
+        createRequest("Cuatro", "d4", "DUCHAS");
+        createRequest("Cinco", "d5", "ALOJAMIENTO");
+
+        MvcResult result = mockMvc.perform(get("/api/requests?page=10&size=2"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("total").asInt()).isEqualTo(5);
+        assertThat(body.get("items")).isEmpty();
+    }
+
+    @Test
+    void getRequestsWithNegativePageReturns400() throws Exception {
+        mockMvc.perform(get("/api/requests?page=-1"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void getRequestsWithZeroSizeReturns400() throws Exception {
+        mockMvc.perform(get("/api/requests?size=0"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void getRequestsWithStatusAndPaginationReturnsExpectedPageAndTotal() throws Exception {
+        createRequest("Abierta uno", "d1", "COMIDA");
+        long abiertaDos = createRequest("Abierta dos", "d2", "SALUD");
+        long cerrada = createRequest("Cerrada", "d3", "OTROS");
+
+        mockMvc.perform(patch("/api/requests/{id}/status", cerrada)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "estado": "CERRADA"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        MvcResult result = mockMvc.perform(get("/api/requests?status=ABIERTA&page=1&size=1"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("total").asInt()).isEqualTo(2);
+        assertThat(body.get("items")).hasSize(1);
+        assertThat(body.get("items").get(0).get("id").asLong()).isEqualTo(abiertaDos);
     }
 
     @Test
