@@ -1,4 +1,3 @@
 package com.rsmad.backend.model;
 
-public class Resource {
-}
+public record Resource(Long id, String nombre) {}
