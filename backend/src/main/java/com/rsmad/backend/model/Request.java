@@ -9,6 +9,7 @@ public record Request(
         String contactPhone,
         String district,
         String notes,
+        Long resourceId,
         RequestType tipo,
         RequestStatus estado,
         Instant createdAt,

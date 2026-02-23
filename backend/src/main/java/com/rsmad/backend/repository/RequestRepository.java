@@ -29,6 +29,7 @@ public class RequestRepository {
                 request.contactPhone(),
                 request.district(),
                 request.notes(),
+                request.resourceId(),
                 request.tipo(),
                 RequestStatus.ABIERTA,
                 now,
@@ -58,6 +59,7 @@ public class RequestRepository {
                         request.contactPhone(),
                         request.district(),
                         request.notes(),
+                        existing.resourceId(),
                         request.tipo(),
                         existing.estado(),
                         existing.createdAt(),
@@ -77,8 +79,29 @@ public class RequestRepository {
                         existing.contactPhone(),
                         existing.district(),
                         existing.notes(),
+                        existing.resourceId(),
                         existing.tipo(),
                         estado,
+                        existing.createdAt(),
+                        Instant.now()
+                )
+        );
+        return Optional.ofNullable(updated);
+    }
+
+    public Optional<Request> updateResourceId(Long id, Long resourceId) {
+        Request updated = store.computeIfPresent(
+                id,
+                (key, existing) -> new Request(
+                        existing.id(),
+                        existing.titulo(),
+                        existing.descripcion(),
+                        existing.contactPhone(),
+                        existing.district(),
+                        existing.notes(),
+                        resourceId,
+                        existing.tipo(),
+                        existing.estado(),
                         existing.createdAt(),
                         Instant.now()
                 )

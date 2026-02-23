@@ -17,9 +17,11 @@ import org.springframework.stereotype.Service;
 public class RequestService {
 
     private final RequestRepository requestRepository;
+    private final ResourceService resourceService;
 
-    public RequestService(RequestRepository requestRepository) {
+    public RequestService(RequestRepository requestRepository, ResourceService resourceService) {
         this.requestRepository = requestRepository;
+        this.resourceService = resourceService;
     }
 
     public Request create(Request request) {
@@ -37,7 +39,19 @@ public class RequestService {
                 .toList();
     }
 
-    public PagedResponse<Request> findAllPaged(RequestStatus status, RequestType type, String q, String sort, int page, int size) {
+    public PagedResponse<Request> findAllPaged(
+            RequestStatus status,
+            RequestType type,
+            String q,
+            Long resourceId,
+            String sort,
+            int page,
+            int size
+    ) {
+        if (resourceId != null) {
+            resourceService.findById(resourceId);
+        }
+
         Comparator<Request> comparator = buildSortComparator(sort);
         String query = q == null ? null : q.trim();
         boolean hasQuery = query != null && !query.isBlank();
@@ -46,6 +60,7 @@ public class RequestService {
         List<Request> filtered = requestRepository.findAllOrderedById().stream()
                 .filter(request -> status == null || request.estado() == status)
                 .filter(request -> type == null || request.tipo() == type)
+                .filter(request -> resourceId == null || resourceId.equals(request.resourceId()))
                 .filter(request -> {
                     if (!hasQuery) {
                         return true;
@@ -109,6 +124,14 @@ public class RequestService {
     public Request updateStatus(Long id, RequestStatus estado) {
         return requestRepository.updateStatus(id, estado)
                 .orElseThrow(() -> new RequestNotFoundException(id));
+    }
+
+    public Request assignResource(Long requestId, Long resourceId) {
+        requestRepository.findById(requestId)
+                .orElseThrow(() -> new RequestNotFoundException(requestId));
+        resourceService.findById(resourceId);
+        return requestRepository.updateResourceId(requestId, resourceId)
+                .orElseThrow(() -> new RequestNotFoundException(requestId));
     }
 
     public void delete(Long id) {

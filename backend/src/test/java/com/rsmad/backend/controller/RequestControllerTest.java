@@ -15,7 +15,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rsmad.backend.exception.GlobalExceptionHandler;
 import com.rsmad.backend.mapper.RequestMapper;
+import com.rsmad.backend.model.Resource;
 import com.rsmad.backend.repository.RequestRepository;
+import com.rsmad.backend.repository.ResourceRepository;
+import com.rsmad.backend.service.ResourceService;
 import com.rsmad.backend.service.RequestService;
 
 import java.util.List;
@@ -33,7 +36,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 
 @WebMvcTest(RequestController.class)
-@Import({RequestService.class, RequestRepository.class, RequestMapper.class, GlobalExceptionHandler.class})
+@Import({RequestService.class, RequestRepository.class, RequestMapper.class, ResourceService.class, ResourceRepository.class, GlobalExceptionHandler.class})
 @AutoConfigureMockMvc(addFilters = false)
 class RequestControllerTest {
 
@@ -46,9 +49,13 @@ class RequestControllerTest {
     @Autowired
     private RequestRepository requestRepository;
 
+    @Autowired
+    private ResourceRepository resourceRepository;
+
     @BeforeEach
     void resetInMemoryStore() {
         requestRepository.clear();
+        resourceRepository.clear();
     }
 
     private long createRequest(String titulo, String descripcion, String tipo) throws Exception {
@@ -348,9 +355,94 @@ class RequestControllerTest {
     }
 
     @Test
+    void getRequestsWithResourceIdFilterReturnsOnlyAssignedToThatResource() throws Exception {
+        long request1 = createRequest("Req1", "d1", "COMIDA");
+        long request2 = createRequest("Req2", "d2", "SALUD");
+        createRequest("Req3", "d3", "OTROS");
+
+        Resource resourceA = resourceRepository.create(new Resource(null, "Resource A"));
+        Resource resourceB = resourceRepository.create(new Resource(null, "Resource B"));
+
+        mockMvc.perform(patch("/api/requests/{id}/assign-resource", request1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"resourceId": %d}
+                                """.formatted(resourceA.id())))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch("/api/requests/{id}/assign-resource", request2)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"resourceId": %d}
+                                """.formatted(resourceB.id())))
+                .andExpect(status().isOk());
+
+        MvcResult result = mockMvc.perform(get("/api/requests?resourceId=%d".formatted(resourceA.id())))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("total").asInt()).isEqualTo(1);
+        assertThat(body.get("items")).hasSize(1);
+        assertThat(body.get("items").get(0).get("id").asLong()).isEqualTo(request1);
+        assertThat(body.get("items").get(0).get("resourceId").asLong()).isEqualTo(resourceA.id());
+    }
+
+    @Test
+    void getRequestsWithResourceIdAndStatusAppliesAndLogic() throws Exception {
+        long requestOpen = createRequest("Req open", "d1", "COMIDA");
+        long requestClosed = createRequest("Req closed", "d2", "SALUD");
+
+        Resource resourceA = resourceRepository.create(new Resource(null, "Resource A"));
+
+        mockMvc.perform(patch("/api/requests/{id}/assign-resource", requestOpen)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"resourceId": %d}
+                                """.formatted(resourceA.id())))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch("/api/requests/{id}/assign-resource", requestClosed)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"resourceId": %d}
+                                """.formatted(resourceA.id())))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch("/api/requests/{id}/status", requestClosed)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"estado": "CERRADA"}
+                                """))
+                .andExpect(status().isOk());
+
+        MvcResult result = mockMvc.perform(get("/api/requests?resourceId=%d&status=ABIERTA".formatted(resourceA.id())))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("total").asInt()).isEqualTo(1);
+        assertThat(body.get("items")).hasSize(1);
+        assertThat(body.get("items").get(0).get("id").asLong()).isEqualTo(requestOpen);
+    }
+
+    @Test
+    void getRequestsWithNonExistingResourceIdReturns404() throws Exception {
+        mockMvc.perform(get("/api/requests?resourceId=999999"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getRequestsWithInvalidResourceIdReturns400() throws Exception {
+        mockMvc.perform(get("/api/requests?resourceId=0"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/requests?resourceId=-1"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void getRequestsWithSortCreatedAtDescReturnsExpectedOrder() throws Exception {
         createRequest("Uno", "d1", "COMIDA");
+        Thread.sleep(2);
         createRequest("Dos", "d2", "SALUD");
+        Thread.sleep(2);
         createRequest("Tres", "d3", "OTROS");
 
         MvcResult result = mockMvc.perform(get("/api/requests?sort=createdAt,desc"))
@@ -564,6 +656,65 @@ class RequestControllerTest {
                                 }
                                 """))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void assignResourceReturns200WhenUpdated() throws Exception {
+        long requestId = createRequest("Req", "desc", "COMIDA");
+        Resource createdResource = resourceRepository.create(new Resource(null, "Recurso A"));
+
+        mockMvc.perform(patch("/api/requests/{id}/assign-resource", requestId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resourceId": %d
+                                }
+                                """.formatted(createdResource.id())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(requestId))
+                .andExpect(jsonPath("$.resourceId").value(createdResource.id()));
+    }
+
+    @Test
+    void assignResourceReturns404WhenRequestNotFound() throws Exception {
+        Resource createdResource = resourceRepository.create(new Resource(null, "Recurso A"));
+
+        mockMvc.perform(patch("/api/requests/{id}/assign-resource", 999999)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resourceId": %d
+                                }
+                                """.formatted(createdResource.id())))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void assignResourceReturns404WhenResourceNotFound() throws Exception {
+        long requestId = createRequest("Req", "desc", "COMIDA");
+
+        mockMvc.perform(patch("/api/requests/{id}/assign-resource", requestId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resourceId": 999999
+                                }
+                                """))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void assignResourceReturns400WhenResourceIdIsNull() throws Exception {
+        long requestId = createRequest("Req", "desc", "COMIDA");
+
+        mockMvc.perform(patch("/api/requests/{id}/assign-resource", requestId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resourceId": null
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

@@ -6,6 +6,7 @@ import java.util.List;
 import com.rsmad.backend.dto.PagedResponse;
 import com.rsmad.backend.dto.RequestDTO;
 import com.rsmad.backend.dto.RequestRequest;
+import com.rsmad.backend.dto.AssignResourceRequest;
 import com.rsmad.backend.dto.UpdateRequestStatusRequest;
 import com.rsmad.backend.mapper.RequestMapper;
 import com.rsmad.backend.model.Request;
@@ -16,6 +17,7 @@ import com.rsmad.backend.service.RequestService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Positive;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -55,11 +57,12 @@ public class RequestController {
             @RequestParam(required = false) RequestStatus status,
             @RequestParam(required = false) RequestType type,
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) @Positive Long resourceId,
             @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size
     ) {
-        PagedResponse<Request> paged = requestService.findAllPaged(status, type, q, sort, page, size);
+        PagedResponse<Request> paged = requestService.findAllPaged(status, type, q, resourceId, sort, page, size);
         List<RequestDTO> items = paged.getItems().stream()
                 .map(requestMapper::toDto)
                 .toList();
@@ -83,6 +86,15 @@ public class RequestController {
             @Valid @RequestBody UpdateRequestStatusRequest request
     ) {
         Request updated = requestService.updateStatus(id, request.getEstado());
+        return ResponseEntity.ok(requestMapper.toDto(updated));
+    }
+
+    @PatchMapping("/{id}/assign-resource")
+    public ResponseEntity<RequestDTO> assignResource(
+            @PathVariable Long id,
+            @Valid @RequestBody AssignResourceRequest request
+    ) {
+        Request updated = requestService.assignResource(id, request.getResourceId());
         return ResponseEntity.ok(requestMapper.toDto(updated));
     }
 

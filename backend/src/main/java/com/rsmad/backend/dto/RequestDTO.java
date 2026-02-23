@@ -13,6 +13,7 @@ public class RequestDTO {
     private String contactPhone;
     private String district;
     private String notes;
+    private Long resourceId;
     private RequestType tipo;
     private RequestStatus estado;
     private Instant createdAt;
@@ -64,6 +65,14 @@ public class RequestDTO {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public Long getResourceId() {
+        return resourceId;
+    }
+
+    public void setResourceId(Long resourceId) {
+        this.resourceId = resourceId;
     }
 
     public RequestType getTipo() {
