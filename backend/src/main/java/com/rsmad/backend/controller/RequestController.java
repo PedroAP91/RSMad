@@ -54,10 +54,12 @@ public class RequestController {
     public PagedResponse<RequestDTO> getRequests(
             @RequestParam(required = false) RequestStatus status,
             @RequestParam(required = false) RequestType type,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size
     ) {
-        PagedResponse<Request> paged = requestService.findAllPaged(status, type, page, size);
+        PagedResponse<Request> paged = requestService.findAllPaged(status, type, q, sort, page, size);
         List<RequestDTO> items = paged.getItems().stream()
                 .map(requestMapper::toDto)
                 .toList();

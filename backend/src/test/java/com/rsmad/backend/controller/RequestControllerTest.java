@@ -205,6 +205,133 @@ class RequestControllerTest {
     }
 
     @Test
+    void getRequestsWithQueryFiltersByTitulo() throws Exception {
+        createRequest("Necesito comida urgente", "d1", "COMIDA");
+        createRequest("Necesito duchas", "d2", "DUCHAS");
+        createRequest("COMIDA para familia", "d3", "OTROS");
+
+        MvcResult result = mockMvc.perform(get("/api/requests?q=comida"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("total").asInt()).isEqualTo(2);
+        assertThat(body.get("items")).hasSize(2);
+        assertThat(StreamSupport.stream(body.get("items").spliterator(), false)
+                .allMatch(node -> node.get("titulo").asText().toLowerCase().contains("comida"))).isTrue();
+    }
+
+    @Test
+    void getRequestsWithQueryFiltersByDescripcion() throws Exception {
+        createRequest("Solicitud 1", "Vivo en la calle", "COMIDA");
+        createRequest("Solicitud 2", "Sin techo en CALLE central", "DUCHAS");
+        createRequest("Solicitud 3", "Sin coincidencia", "OTROS");
+
+        MvcResult result = mockMvc.perform(get("/api/requests?q=calle"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("total").asInt()).isEqualTo(2);
+        assertThat(body.get("items")).hasSize(2);
+    }
+
+    @Test
+    void getRequestsWithQueryAndStatusAndTypeAppliesAndLogic() throws Exception {
+        long abiertaComidaConMatch = createRequest("Ayuda", "Necesito comida en calle", "COMIDA");
+        long abiertaSaludConMatch = createRequest("Ayuda", "Necesito comida en calle", "SALUD");
+        long cerradaComidaConMatch = createRequest("Ayuda", "Necesito comida en calle", "COMIDA");
+        createRequest("Ayuda", "Texto sin match", "COMIDA");
+
+        mockMvc.perform(patch("/api/requests/{id}/status", cerradaComidaConMatch)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "estado": "CERRADA"
+                                }
+                                """))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch("/api/requests/{id}/status", abiertaSaludConMatch)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "estado": "CERRADA"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        MvcResult result = mockMvc.perform(get("/api/requests?status=ABIERTA&type=COMIDA&q=calle"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("total").asInt()).isEqualTo(1);
+        assertThat(body.get("items")).hasSize(1);
+        assertThat(body.get("items").get(0).get("id").asLong()).isEqualTo(abiertaComidaConMatch);
+    }
+
+    @Test
+    void getRequestsWithBlankQueryDoesNotFilter() throws Exception {
+        createRequest("Uno", "desc uno", "COMIDA");
+        createRequest("Dos", "desc dos", "SALUD");
+        createRequest("Tres", "desc tres", "OTROS");
+
+        MvcResult result = mockMvc.perform(get("/api/requests").param("q", "   "))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("total").asInt()).isEqualTo(3);
+        assertThat(body.get("items")).hasSize(3);
+    }
+
+    @Test
+    void getRequestsWithSortCreatedAtDescReturnsExpectedOrder() throws Exception {
+        createRequest("Uno", "d1", "COMIDA");
+        createRequest("Dos", "d2", "SALUD");
+        createRequest("Tres", "d3", "OTROS");
+
+        MvcResult result = mockMvc.perform(get("/api/requests?sort=createdAt,desc"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("items")).hasSize(3);
+        assertThat(body.get("items").get(0).get("id").asLong()).isEqualTo(3);
+        assertThat(body.get("items").get(1).get("id").asLong()).isEqualTo(2);
+        assertThat(body.get("items").get(2).get("id").asLong()).isEqualTo(1);
+    }
+
+    @Test
+    void getRequestsWithSortTituloAscOrdersAlphabetically() throws Exception {
+        createRequest("Zeta", "d1", "COMIDA");
+        createRequest("Lima", "d2", "SALUD");
+        createRequest("Alfa", "d3", "OTROS");
+
+        MvcResult result = mockMvc.perform(get("/api/requests?sort=titulo,asc"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("items")).hasSize(3);
+        assertThat(body.get("items").get(0).get("id").asLong()).isEqualTo(3);
+        assertThat(body.get("items").get(1).get("id").asLong()).isEqualTo(2);
+        assertThat(body.get("items").get(2).get("id").asLong()).isEqualTo(1);
+    }
+
+    @Test
+    void getRequestsWithInvalidSortFieldReturns400() throws Exception {
+        mockMvc.perform(get("/api/requests?sort=foo,asc"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void getRequestsWithInvalidSortDirectionReturns400() throws Exception {
+        mockMvc.perform(get("/api/requests?sort=id,up"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void getRequestsPaginationPage0Size2ReturnsFirstTwo() throws Exception {
         createRequest("Uno", "d1", "COMIDA");
         createRequest("Dos", "d2", "SALUD");
