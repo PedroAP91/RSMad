@@ -8,6 +8,8 @@ import com.rsmad.backend.dto.RequestRequest;
 import com.rsmad.backend.dto.UpdateRequestStatusRequest;
 import com.rsmad.backend.mapper.RequestMapper;
 import com.rsmad.backend.model.Request;
+import com.rsmad.backend.model.RequestStatus;
+import com.rsmad.backend.model.RequestType;
 import com.rsmad.backend.service.RequestService;
 
 import jakarta.validation.Valid;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -43,8 +46,11 @@ public class RequestController {
     }
 
     @GetMapping
-    public List<RequestDTO> getRequests() {
-        return requestService.findAll().stream()
+    public List<RequestDTO> getRequests(
+            @RequestParam(required = false) RequestStatus status,
+            @RequestParam(required = false) RequestType type
+    ) {
+        return requestService.findAll(status, type).stream()
                 .map(requestMapper::toDto)
                 .toList();
     }

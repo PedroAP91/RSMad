@@ -5,6 +5,7 @@ import java.util.List;
 import com.rsmad.backend.exception.RequestNotFoundException;
 import com.rsmad.backend.model.Request;
 import com.rsmad.backend.model.RequestStatus;
+import com.rsmad.backend.model.RequestType;
 import com.rsmad.backend.repository.RequestRepository;
 
 import org.springframework.stereotype.Service;
@@ -24,6 +25,13 @@ public class RequestService {
 
     public List<Request> findAll() {
         return requestRepository.findAllOrderedById();
+    }
+
+    public List<Request> findAll(RequestStatus status, RequestType type) {
+        return requestRepository.findAllOrderedById().stream()
+                .filter(request -> status == null || request.estado() == status)
+                .filter(request -> type == null || request.tipo() == type)
+                .toList();
     }
 
     public Request findById(Long id) {

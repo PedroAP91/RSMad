@@ -129,6 +129,81 @@ class RequestControllerTest {
     }
 
     @Test
+    void getRequestsWithStatusFilterReturnsOnlyMatchingStatus() throws Exception {
+        long abierta = createRequest("Abierta", "d1", "COMIDA");
+        long enProceso = createRequest("En proceso", "d2", "SALUD");
+        createRequest("Otra abierta", "d3", "OTROS");
+
+        mockMvc.perform(patch("/api/requests/{id}/status", enProceso)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "estado": "EN_PROCESO"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        MvcResult result = mockMvc.perform(get("/api/requests?status=ABIERTA"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body).hasSize(2);
+        assertThat(StreamSupport.stream(body.spliterator(), false)
+                .allMatch(node -> "ABIERTA".equals(node.get("estado").asText()))).isTrue();
+        assertThat(StreamSupport.stream(body.spliterator(), false)
+                .map(node -> node.get("id").asLong()).toList()).contains(abierta);
+    }
+
+    @Test
+    void getRequestsWithTypeFilterReturnsOnlyMatchingType() throws Exception {
+        createRequest("Comida 1", "d1", "COMIDA");
+        createRequest("Salud", "d2", "SALUD");
+        createRequest("Comida 2", "d3", "COMIDA");
+
+        MvcResult result = mockMvc.perform(get("/api/requests?type=COMIDA"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body).hasSize(2);
+        assertThat(StreamSupport.stream(body.spliterator(), false)
+                .allMatch(node -> "COMIDA".equals(node.get("tipo").asText()))).isTrue();
+    }
+
+    @Test
+    void getRequestsWithStatusAndTypeFilterReturnsOnlyMatchingBoth() throws Exception {
+        long abiertaComida = createRequest("Abierta comida", "d1", "COMIDA");
+        createRequest("Abierta salud", "d2", "SALUD");
+        long cerradaComida = createRequest("Cerrada comida", "d3", "COMIDA");
+
+        mockMvc.perform(patch("/api/requests/{id}/status", cerradaComida)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "estado": "CERRADA"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        MvcResult result = mockMvc.perform(get("/api/requests?status=ABIERTA&type=COMIDA"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body).hasSize(1);
+        assertThat(body.get(0).get("id").asLong()).isEqualTo(abiertaComida);
+        assertThat(body.get(0).get("estado").asText()).isEqualTo("ABIERTA");
+        assertThat(body.get(0).get("tipo").asText()).isEqualTo("COMIDA");
+    }
+
+    @Test
+    void getRequestsWithInvalidStatusReturns400() throws Exception {
+        mockMvc.perform(get("/api/requests?status=NOPE"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void getRequestByIdReturns404WhenNotFound() throws Exception {
         mockMvc.perform(get("/api/requests/999999"))
                 .andExpect(status().isNotFound());
