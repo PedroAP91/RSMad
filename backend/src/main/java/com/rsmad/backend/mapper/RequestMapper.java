@@ -14,6 +14,9 @@ public class RequestMapper {
                 null,
                 request.getTitulo(),
                 request.getDescripcion(),
+                request.getContactPhone(),
+                request.getDistrict(),
+                request.getNotes(),
                 request.getTipo(),
                 null,
                 null,
@@ -26,6 +29,9 @@ public class RequestMapper {
         dto.setId(model.id());
         dto.setTitulo(model.titulo());
         dto.setDescripcion(model.descripcion());
+        dto.setContactPhone(model.contactPhone());
+        dto.setDistrict(model.district());
+        dto.setNotes(model.notes());
         dto.setTipo(model.tipo());
         dto.setEstado(model.estado());
         dto.setCreatedAt(model.createdAt());

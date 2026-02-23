@@ -10,6 +10,9 @@ public class RequestDTO {
     private Long id;
     private String titulo;
     private String descripcion;
+    private String contactPhone;
+    private String district;
+    private String notes;
     private RequestType tipo;
     private RequestStatus estado;
     private Instant createdAt;
@@ -37,6 +40,30 @@ public class RequestDTO {
 
     public void setDescripcion(String descripcion) {
         this.descripcion = descripcion;
+    }
+
+    public String getContactPhone() {
+        return contactPhone;
+    }
+
+    public void setContactPhone(String contactPhone) {
+        this.contactPhone = contactPhone;
+    }
+
+    public String getDistrict() {
+        return district;
+    }
+
+    public void setDistrict(String district) {
+        this.district = district;
+    }
+
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
     }
 
     public RequestType getTipo() {

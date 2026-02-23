@@ -52,19 +52,44 @@ class RequestControllerTest {
     }
 
     private long createRequest(String titulo, String descripcion, String tipo) throws Exception {
+        return createRequest(titulo, descripcion, tipo, null, null, null);
+    }
+
+    private long createRequest(
+            String titulo,
+            String descripcion,
+            String tipo,
+            String contactPhone,
+            String district,
+            String notes
+    ) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/requests")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "titulo": "%s",
                                   "descripcion": "%s",
+                                  "contactPhone": %s,
+                                  "district": %s,
+                                  "notes": %s,
                                   "tipo": "%s"
                                 }
-                                """.formatted(titulo, descripcion, tipo)))
+                                """.formatted(
+                                titulo,
+                                descripcion,
+                                quoteOrNull(contactPhone),
+                                quoteOrNull(district),
+                                quoteOrNull(notes),
+                                tipo
+                        )))
                 .andExpect(status().isCreated())
                 .andReturn();
         JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
         return json.get("id").asLong();
+    }
+
+    private String quoteOrNull(String value) {
+        return value == null ? "null" : "\"" + value + "\"";
     }
 
     @Test
@@ -75,6 +100,9 @@ class RequestControllerTest {
                                 {
                                   "titulo": "Necesito comida",
                                   "descripcion": "Para tres personas",
+                                  "contactPhone": "+34 666 555 444",
+                                  "district": "Centro",
+                                  "notes": "Tiene alergias",
                                   "tipo": "COMIDA"
                                 }
                                 """))
@@ -82,6 +110,9 @@ class RequestControllerTest {
                 .andExpect(header().string("Location", matchesPattern("/api/requests/\\d+")))
                 .andExpect(jsonPath("$.titulo").value("Necesito comida"))
                 .andExpect(jsonPath("$.descripcion").value("Para tres personas"))
+                .andExpect(jsonPath("$.contactPhone").value("+34666555444"))
+                .andExpect(jsonPath("$.district").value("Centro"))
+                .andExpect(jsonPath("$.notes").value("Tiene alergias"))
                 .andExpect(jsonPath("$.tipo").value("COMIDA"))
                 .andExpect(jsonPath("$.estado").value("ABIERTA"))
                 .andReturn();
@@ -107,6 +138,37 @@ class RequestControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(result -> assertThat(result.getResolvedException())
                         .isInstanceOf(MethodArgumentNotValidException.class));
+    }
+
+    @Test
+    void createRequestWithInvalidContactPhoneReturns400() throws Exception {
+        mockMvc.perform(post("/api/requests")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "titulo": "Req",
+                                  "descripcion": "Desc",
+                                  "contactPhone": "abc",
+                                  "tipo": "COMIDA"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createRequestWithTooLongNotesReturns400() throws Exception {
+        String longNotes = "a".repeat(501);
+        mockMvc.perform(post("/api/requests")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "titulo": "Req",
+                                  "descripcion": "Desc",
+                                  "notes": "%s",
+                                  "tipo": "COMIDA"
+                                }
+                                """.formatted(longNotes)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -437,7 +499,7 @@ class RequestControllerTest {
 
     @Test
     void updateRequestReturns200WhenUpdated() throws Exception {
-        long createdId = createRequest("Inicial", "desc", "COMIDA");
+        long createdId = createRequest("Inicial", "desc", "COMIDA", "+34 611 222 333", "Centro", "nota inicial");
 
         mockMvc.perform(put("/api/requests/{id}", createdId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -445,6 +507,9 @@ class RequestControllerTest {
                                 {
                                   "titulo": "Actualizado",
                                   "descripcion": "desc nueva",
+                                  "contactPhone": "+34 699 888 777",
+                                  "district": "Retiro",
+                                  "notes": "nota actualizada",
                                   "tipo": "SALUD"
                                 }
                                 """))
@@ -452,6 +517,9 @@ class RequestControllerTest {
                 .andExpect(jsonPath("$.id").value(createdId))
                 .andExpect(jsonPath("$.titulo").value("Actualizado"))
                 .andExpect(jsonPath("$.descripcion").value("desc nueva"))
+                .andExpect(jsonPath("$.contactPhone").value("+34699888777"))
+                .andExpect(jsonPath("$.district").value("Retiro"))
+                .andExpect(jsonPath("$.notes").value("nota actualizada"))
                 .andExpect(jsonPath("$.tipo").value("SALUD"))
                 .andExpect(jsonPath("$.estado").value("ABIERTA"));
     }
