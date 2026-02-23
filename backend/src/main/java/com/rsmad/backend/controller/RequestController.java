@@ -99,6 +99,12 @@ public class RequestController {
         return ResponseEntity.ok(requestMapper.toDto(updated));
     }
 
+    @PatchMapping("/{id}/unassign-resource")
+    public ResponseEntity<RequestDTO> unassignResource(@PathVariable Long id) {
+        Request updated = requestService.unassignResource(id);
+        return ResponseEntity.ok(requestMapper.toDto(updated));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteRequest(@PathVariable Long id) {
         requestService.delete(id);

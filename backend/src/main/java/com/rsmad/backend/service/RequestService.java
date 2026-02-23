@@ -138,6 +138,13 @@ public class RequestService {
                 .orElseThrow(() -> new RequestNotFoundException(requestId));
     }
 
+    public Request unassignResource(Long requestId) {
+        requestRepository.findById(requestId)
+                .orElseThrow(() -> new RequestNotFoundException(requestId));
+        return requestRepository.updateResourceId(requestId, null)
+                .orElseThrow(() -> new RequestNotFoundException(requestId));
+    }
+
     public void delete(Long id) {
         requestRepository.deleteById(id);
     }

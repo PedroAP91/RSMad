@@ -2,6 +2,7 @@ package com.rsmad.backend.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -795,6 +796,41 @@ class RequestControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void unassignResourceReturns200WhenPreviouslyAssigned() throws Exception {
+        long requestId = createRequest("Req", "desc", "COMIDA");
+        Resource resource = resourceRepository.create(new Resource(null, "Resource A"));
+
+        mockMvc.perform(patch("/api/requests/{id}/assign-resource", requestId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"resourceId": %d}
+                                """.formatted(resource.id())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resourceId").value(resource.id()));
+
+        mockMvc.perform(patch("/api/requests/{id}/unassign-resource", requestId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(requestId))
+                .andExpect(jsonPath("$.resourceId").value(nullValue()));
+    }
+
+    @Test
+    void unassignResourceReturns200WhenAlreadyUnassigned() throws Exception {
+        long requestId = createRequest("Req", "desc", "COMIDA");
+
+        mockMvc.perform(patch("/api/requests/{id}/unassign-resource", requestId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(requestId))
+                .andExpect(jsonPath("$.resourceId").value(nullValue()));
+    }
+
+    @Test
+    void unassignResourceReturns404WhenRequestNotFound() throws Exception {
+        mockMvc.perform(patch("/api/requests/{id}/unassign-resource", 999999))
+                .andExpect(status().isNotFound());
     }
 
     @Test
