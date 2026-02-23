@@ -438,6 +438,86 @@ class RequestControllerTest {
     }
 
     @Test
+    void getRequestsWithAssignedFalseReturnsOnlyUnassigned() throws Exception {
+        long requestAssigned = createRequest("Req assigned", "d1", "COMIDA");
+        long requestUnassigned1 = createRequest("Req unassigned 1", "d2", "SALUD");
+        long requestUnassigned2 = createRequest("Req unassigned 2", "d3", "OTROS");
+        Resource resource = resourceRepository.create(new Resource(null, "Resource A"));
+
+        mockMvc.perform(patch("/api/requests/{id}/assign-resource", requestAssigned)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"resourceId": %d}
+                                """.formatted(resource.id())))
+                .andExpect(status().isOk());
+
+        MvcResult result = mockMvc.perform(get("/api/requests?assigned=false"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("total").asInt()).isEqualTo(2);
+        assertThat(body.get("items")).hasSize(2);
+        List<Long> ids = StreamSupport.stream(body.get("items").spliterator(), false)
+                .map(node -> node.get("id").asLong())
+                .toList();
+        assertThat(ids).containsExactly(requestUnassigned1, requestUnassigned2);
+    }
+
+    @Test
+    void getRequestsWithAssignedTrueReturnsOnlyAssigned() throws Exception {
+        long requestAssigned1 = createRequest("Req assigned 1", "d1", "COMIDA");
+        long requestAssigned2 = createRequest("Req assigned 2", "d2", "SALUD");
+        createRequest("Req unassigned", "d3", "OTROS");
+        Resource resource = resourceRepository.create(new Resource(null, "Resource A"));
+
+        mockMvc.perform(patch("/api/requests/{id}/assign-resource", requestAssigned1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"resourceId": %d}
+                                """.formatted(resource.id())))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch("/api/requests/{id}/assign-resource", requestAssigned2)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"resourceId": %d}
+                                """.formatted(resource.id())))
+                .andExpect(status().isOk());
+
+        MvcResult result = mockMvc.perform(get("/api/requests?assigned=true"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("total").asInt()).isEqualTo(2);
+        assertThat(body.get("items")).hasSize(2);
+        assertThat(StreamSupport.stream(body.get("items").spliterator(), false)
+                .allMatch(node -> !node.get("resourceId").isNull())).isTrue();
+    }
+
+    @Test
+    void getRequestsWithAssignedFalseAndResourceIdReturnsEmpty() throws Exception {
+        long requestAssigned = createRequest("Req assigned", "d1", "COMIDA");
+        createRequest("Req unassigned", "d2", "SALUD");
+        Resource resource = resourceRepository.create(new Resource(null, "Resource A"));
+
+        mockMvc.perform(patch("/api/requests/{id}/assign-resource", requestAssigned)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"resourceId": %d}
+                                """.formatted(resource.id())))
+                .andExpect(status().isOk());
+
+        MvcResult result = mockMvc.perform(get("/api/requests?assigned=false&resourceId=%d".formatted(resource.id())))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(body.get("total").asInt()).isEqualTo(0);
+        assertThat(body.get("items")).isEmpty();
+    }
+
+    @Test
     void getRequestsWithSortCreatedAtDescReturnsExpectedOrder() throws Exception {
         createRequest("Uno", "d1", "COMIDA");
         Thread.sleep(2);

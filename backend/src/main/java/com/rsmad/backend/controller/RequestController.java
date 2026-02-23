@@ -58,11 +58,12 @@ public class RequestController {
             @RequestParam(required = false) RequestType type,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) @Positive Long resourceId,
+            @RequestParam(required = false) Boolean assigned,
             @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size
     ) {
-        PagedResponse<Request> paged = requestService.findAllPaged(status, type, q, resourceId, sort, page, size);
+        PagedResponse<Request> paged = requestService.findAllPaged(status, type, q, resourceId, assigned, sort, page, size);
         List<RequestDTO> items = paged.getItems().stream()
                 .map(requestMapper::toDto)
                 .toList();

@@ -44,6 +44,7 @@ public class RequestService {
             RequestType type,
             String q,
             Long resourceId,
+            Boolean assigned,
             String sort,
             int page,
             int size
@@ -61,6 +62,9 @@ public class RequestService {
                 .filter(request -> status == null || request.estado() == status)
                 .filter(request -> type == null || request.tipo() == type)
                 .filter(request -> resourceId == null || resourceId.equals(request.resourceId()))
+                .filter(request -> assigned == null
+                        || (assigned && request.resourceId() != null)
+                        || (!assigned && request.resourceId() == null))
                 .filter(request -> {
                     if (!hasQuery) {
                         return true;
