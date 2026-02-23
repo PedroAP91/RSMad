@@ -1,4 +1,13 @@
 package com.rsmad.backend.model;
 
-public class Request {
-}
+import java.time.Instant;
+
+public record Request(
+        Long id,
+        String titulo,
+        String descripcion,
+        RequestType tipo,
+        RequestStatus estado,
+        Instant createdAt,
+        Instant updatedAt
+) {}

@@ -1,0 +1,216 @@
+package com.rsmad.backend.controller;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.matchesPattern;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rsmad.backend.exception.GlobalExceptionHandler;
+import com.rsmad.backend.mapper.RequestMapper;
+import com.rsmad.backend.repository.RequestRepository;
+import com.rsmad.backend.service.RequestService;
+
+import java.util.List;
+import java.util.stream.StreamSupport;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+
+@WebMvcTest(RequestController.class)
+@Import({RequestService.class, RequestRepository.class, RequestMapper.class, GlobalExceptionHandler.class})
+@AutoConfigureMockMvc(addFilters = false)
+class RequestControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private RequestRepository requestRepository;
+
+    @BeforeEach
+    void resetInMemoryStore() {
+        requestRepository.clear();
+    }
+
+    private long createRequest(String titulo, String descripcion, String tipo) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/requests")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "titulo": "%s",
+                                  "descripcion": "%s",
+                                  "tipo": "%s"
+                                }
+                                """.formatted(titulo, descripcion, tipo)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
+        return json.get("id").asLong();
+    }
+
+    @Test
+    void createRequestReturns201AndLocationAndBody() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/requests")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "titulo": "Necesito comida",
+                                  "descripcion": "Para tres personas",
+                                  "tipo": "COMIDA"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", matchesPattern("/api/requests/\\d+")))
+                .andExpect(jsonPath("$.titulo").value("Necesito comida"))
+                .andExpect(jsonPath("$.descripcion").value("Para tres personas"))
+                .andExpect(jsonPath("$.tipo").value("COMIDA"))
+                .andExpect(jsonPath("$.estado").value("ABIERTA"))
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(result.getResponse().getHeader("Location"))
+                .isEqualTo("/api/requests/" + body.get("id").asLong());
+        assertThat(body.get("createdAt").asText()).isNotBlank();
+        assertThat(body.get("updatedAt").asText()).isNotBlank();
+    }
+
+    @Test
+    void createRequestWithInvalidTituloReturns400() throws Exception {
+        mockMvc.perform(post("/api/requests")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "titulo": "",
+                                  "descripcion": "Descripcion",
+                                  "tipo": "COMIDA"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(result -> assertThat(result.getResolvedException())
+                        .isInstanceOf(MethodArgumentNotValidException.class));
+    }
+
+    @Test
+    void getRequestsReturnsListOrderedByIdAscAndSize3() throws Exception {
+        createRequest("Req Uno", "d1", "COMIDA");
+        createRequest("Req Dos", "d2", "SALUD");
+        createRequest("Req Tres", "d3", "OTROS");
+
+        MvcResult result = mockMvc.perform(get("/api/requests"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        List<Long> ids = StreamSupport.stream(body.spliterator(), false)
+                .map(node -> node.get("id").asLong())
+                .toList();
+
+        assertThat(ids).hasSize(3);
+        assertThat(ids).isSorted();
+    }
+
+    @Test
+    void getRequestByIdReturns404WhenNotFound() throws Exception {
+        mockMvc.perform(get("/api/requests/999999"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updateRequestReturns200WhenUpdated() throws Exception {
+        long createdId = createRequest("Inicial", "desc", "COMIDA");
+
+        mockMvc.perform(put("/api/requests/{id}", createdId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "titulo": "Actualizado",
+                                  "descripcion": "desc nueva",
+                                  "tipo": "SALUD"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(createdId))
+                .andExpect(jsonPath("$.titulo").value("Actualizado"))
+                .andExpect(jsonPath("$.descripcion").value("desc nueva"))
+                .andExpect(jsonPath("$.tipo").value("SALUD"))
+                .andExpect(jsonPath("$.estado").value("ABIERTA"));
+    }
+
+    @Test
+    void updateRequestReturns404WhenNotFound() throws Exception {
+        mockMvc.perform(put("/api/requests/{id}", 999999)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "titulo": "No existe",
+                                  "descripcion": "x",
+                                  "tipo": "COMIDA"
+                                }
+                                """))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updateRequestStatusReturns200WhenUpdated() throws Exception {
+        long createdId = createRequest("Estado", "desc", "COMIDA");
+
+        mockMvc.perform(patch("/api/requests/{id}/status", createdId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "estado": "EN_PROCESO"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(createdId))
+                .andExpect(jsonPath("$.estado").value("EN_PROCESO"));
+    }
+
+    @Test
+    void updateRequestStatusReturns404WhenNotFound() throws Exception {
+        mockMvc.perform(patch("/api/requests/{id}/status", 999999)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "estado": "EN_PROCESO"
+                                }
+                                """))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deleteRequestReturns204AndRequestIsGone() throws Exception {
+        long createdId = createRequest("Para borrar", "desc", "COMIDA");
+
+        mockMvc.perform(delete("/api/requests/{id}", createdId))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/requests/{id}", createdId))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deleteRequestReturns204WhenNotFound() throws Exception {
+        mockMvc.perform(delete("/api/requests/{id}", 999999))
+                .andExpect(status().isNoContent());
+    }
+}

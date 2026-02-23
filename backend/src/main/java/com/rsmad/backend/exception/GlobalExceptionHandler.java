@@ -12,4 +12,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Void> handleResourceNotFound(ResourceNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     }
+
+    @ExceptionHandler(RequestNotFoundException.class)
+    public ResponseEntity<Void> handleRequestNotFound(RequestNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+    }
 }
