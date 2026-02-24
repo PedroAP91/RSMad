@@ -33,3 +33,33 @@ jobs:
         run: |
           chmod +x ./mvnw
           ./mvnw -f backend/pom.xml test
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node (lockfile)
+        if: ${{ hashFiles('frontend/package-lock.json') != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Node (no lockfile)
+        if: ${{ hashFiles('frontend/package-lock.json') == '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+          npm run build
