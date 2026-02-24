@@ -1,5 +1,6 @@
 ﻿<script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { fetchJson } from './api/http'
 import { listRequests } from './api/requests'
 
 const filters = reactive({
@@ -16,6 +17,7 @@ const items = ref([])
 const total = ref(0)
 const loading = ref(false)
 const errorMessage = ref('')
+const authNotice = ref('')
 
 const hasPrev = computed(() => page.value > 0)
 const from = computed(() => (total.value === 0 ? 0 : page.value * Number(filters.size) + 1))
@@ -37,6 +39,31 @@ function mapErrorMessage(error) {
   if (text.includes('401')) return 'No autorizado (Basic Auth). Revisa .env.development.local'
   if (text.includes('400')) return 'Parametros invalidos'
   return text || 'Error inesperado'
+}
+
+function mapAuthNotice(error) {
+  const text = String(error?.message || error)
+  if (text.includes('VITE_BASIC_USER') || text.includes('VITE_BASIC_PASS')) {
+    return 'No autorizado. Copia .env.development.example a .env.development.local y pon VITE_BASIC_USER/VITE_BASIC_PASS'
+  }
+  if (text.includes('401')) {
+    return 'No autorizado. Copia .env.development.example a .env.development.local y pon VITE_BASIC_USER/VITE_BASIC_PASS'
+  }
+  if (text.includes('Failed to fetch') || text.includes('NetworkError') || text.includes('fetch')) {
+    return 'Backend no disponible en http://localhost:8080'
+  }
+  return 'Backend no disponible en http://localhost:8080'
+}
+
+async function checkAuth() {
+  authNotice.value = ''
+  try {
+    await fetchJson('/api/health', { auth: true })
+    return true
+  } catch (error) {
+    authNotice.value = mapAuthNotice(error)
+    return false
+  }
 }
 
 async function loadRequests() {
@@ -92,12 +119,18 @@ function nextPage() {
   loadRequests()
 }
 
-onMounted(loadRequests)
+onMounted(async () => {
+  const ok = await checkAuth()
+  if (ok) {
+    loadRequests()
+  }
+})
 </script>
 
 <template>
   <div class="container">
     <h1>Requests</h1>
+    <p v-if="authNotice" class="notice">{{ authNotice }}</p>
 
     <form class="filters" @submit.prevent="search">
       <label>
@@ -228,6 +261,13 @@ button {
 .error {
   color: #b00020;
   font-weight: 600;
+}
+.notice {
+  color: #7a1f1f;
+  background: #fff3cd;
+  border: 1px solid #f0d98a;
+  padding: 0.6rem;
+  margin: 0.5rem 0 1rem;
 }
 .pagination {
   display: flex;

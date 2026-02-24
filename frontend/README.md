@@ -30,3 +30,9 @@ npm run preview
 ```
 
 El cliente API usa `fetch` y, si `VITE_BASIC_USER`/`VITE_BASIC_PASS` existen en dev, envia `Authorization: Basic ...`.
+
+## Troubleshooting 401
+
+- Comprueba autenticacion contra `/api/health`.
+- Si aparece `No autorizado`, copia `.env.development.example` a `.env.development.local`.
+- Define `VITE_BASIC_USER` y `VITE_BASIC_PASS` y reinicia `npm run dev`.
