@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Locale;
 
 import com.rsmad.backend.dto.PagedResponse;
+import com.rsmad.backend.exception.RequestConflictException;
 import com.rsmad.backend.exception.RequestNotFoundException;
 import com.rsmad.backend.model.Request;
 import com.rsmad.backend.model.RequestStatus;
@@ -131,8 +132,11 @@ public class RequestService {
     }
 
     public Request assignResource(Long requestId, Long resourceId) {
-        requestRepository.findById(requestId)
+        Request request = requestRepository.findById(requestId)
                 .orElseThrow(() -> new RequestNotFoundException(requestId));
+        if (request.estado() == RequestStatus.CERRADA || request.estado() == RequestStatus.CANCELADA) {
+            throw new RequestConflictException(requestId, request.estado().name());
+        }
         resourceService.findById(resourceId);
         return requestRepository.updateResourceId(requestId, resourceId)
                 .orElseThrow(() -> new RequestNotFoundException(requestId));

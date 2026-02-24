@@ -799,6 +799,62 @@ class RequestControllerTest {
     }
 
     @Test
+    void assignResourceReturns409WhenRequestClosed() throws Exception {
+        long requestId = createRequest("Req", "desc", "COMIDA");
+        Resource resource = resourceRepository.create(new Resource(null, "Recurso A"));
+
+        mockMvc.perform(patch("/api/requests/{id}/status", requestId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "estado": "CERRADA"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/requests/{id}/assign-resource", requestId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resourceId": %d
+                                }
+                                """.formatted(resource.id())))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(get("/api/requests/{id}", requestId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resourceId").value(nullValue()));
+    }
+
+    @Test
+    void assignResourceReturns409WhenRequestCancelled() throws Exception {
+        long requestId = createRequest("Req", "desc", "COMIDA");
+        Resource resource = resourceRepository.create(new Resource(null, "Recurso A"));
+
+        mockMvc.perform(patch("/api/requests/{id}/status", requestId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "estado": "CANCELADA"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/requests/{id}/assign-resource", requestId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resourceId": %d
+                                }
+                                """.formatted(resource.id())))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(get("/api/requests/{id}", requestId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resourceId").value(nullValue()));
+    }
+
+    @Test
     void unassignResourceReturns200WhenPreviouslyAssigned() throws Exception {
         long requestId = createRequest("Req", "desc", "COMIDA");
         Resource resource = resourceRepository.create(new Resource(null, "Resource A"));

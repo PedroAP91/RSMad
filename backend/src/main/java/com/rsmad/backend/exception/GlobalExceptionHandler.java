@@ -29,4 +29,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Void> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
     }
+
+    @ExceptionHandler(RequestConflictException.class)
+    public ResponseEntity<Void> handleRequestConflict(RequestConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).build();
+    }
 }
