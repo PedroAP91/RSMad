@@ -1,7 +1,7 @@
 package com.rsmad.backend.controller;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
@@ -18,10 +18,16 @@ class HealthControllerTest {
     private MockMvc mockMvc;
 
     @Test
-    void healthEndpointReturnsUpStatus() throws Exception {
+    void healthEndpointReturnsOk() throws Exception {
         mockMvc.perform(get("/health"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("UP"))
-                .andExpect(jsonPath("$.service").value("RSMad"));
+                .andExpect(content().string("OK"));
+    }
+
+    @Test
+    void apiHealthEndpointReturnsOk() throws Exception {
+        mockMvc.perform(get("/api/health"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("OK"));
     }
 }
